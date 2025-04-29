@@ -12,6 +12,7 @@ import copy
 from datetime import date, datetime, timedelta
 
 base_url = 'http://api.exchangeratesapi.io/'
+SECONDS_BETWEEN_REQUESTS = 70
 
 logger = singer.get_logger()
 session = requests.Session()
@@ -64,7 +65,6 @@ def do_sync(base, start_date, access_key):
             # Update schema if new currency/currencies exist
             for rate in payload['rates']:
                 if rate not in schema['properties']:
-                    logger.info(f"Updating schema properties with {rate}")
                     schema['properties'][rate] = {'type': ['null', 'number']}
 
             # Only write schema if it has changed
@@ -72,13 +72,14 @@ def do_sync(base, start_date, access_key):
                 singer.write_schema('exchange_rate', schema, 'date')
 
             if payload['date'] == next_date:
-                logger.info(f"Writing the payload for {next_date}")
+                logger.info(f"Writing the data for {next_date}")
                 singer.write_records('exchange_rate', [parse_response(payload)])
 
             state = {'start_date': next_date}
             next_date = (datetime.strptime(next_date, DATE_FORMAT) + timedelta(days=1)).strftime(DATE_FORMAT)
             prev_schema = copy.deepcopy(schema)
-            time.sleep(70)
+            logger.info(f"Sleeping for {SECONDS_BETWEEN_REQUESTS} seconds")
+            time.sleep(SECONDS_BETWEEN_REQUESTS)
 
     except requests.exceptions.RequestException as e:
         logger.fatal('Error on ' + e.request.url +
