@@ -78,6 +78,7 @@ def do_sync(base, start_date, access_key):
             state = {'start_date': next_date}
             next_date = (datetime.strptime(next_date, DATE_FORMAT) + timedelta(days=1)).strftime(DATE_FORMAT)
             prev_schema = copy.deepcopy(schema)
+            time.sleep(70)
 
     except requests.exceptions.RequestException as e:
         logger.fatal('Error on ' + e.request.url +
