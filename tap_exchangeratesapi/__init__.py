@@ -12,6 +12,7 @@ import copy
 from datetime import date, datetime, timedelta
 
 base_url = 'http://api.exchangeratesapi.io/'
+SECONDS_BETWEEN_REQUESTS = 70
 
 logger = singer.get_logger()
 session = requests.Session()
@@ -45,12 +46,12 @@ def request(url, params):
     response = requests.get(url=url, params=params)
     response.raise_for_status()
     return response
-    
+
 def do_sync(base, start_date, access_key):
     state = {'start_date': start_date}
     next_date = start_date
     prev_schema = {}
-    
+
     try:
         while datetime.strptime(next_date, DATE_FORMAT) <= datetime.utcnow():
             logger.info('Replicating exchange rate data from %s using base %s',
@@ -59,6 +60,7 @@ def do_sync(base, start_date, access_key):
 
             response = request(base_url + next_date, {'base': base, 'access_key': access_key})
             payload = response.json()
+            logger.info(f"Payload: {payload}")
 
             # Update schema if new currency/currencies exist
             for rate in payload['rates']:
@@ -70,11 +72,14 @@ def do_sync(base, start_date, access_key):
                 singer.write_schema('exchange_rate', schema, 'date')
 
             if payload['date'] == next_date:
+                logger.info(f"Writing the data for {next_date}")
                 singer.write_records('exchange_rate', [parse_response(payload)])
 
             state = {'start_date': next_date}
             next_date = (datetime.strptime(next_date, DATE_FORMAT) + timedelta(days=1)).strftime(DATE_FORMAT)
             prev_schema = copy.deepcopy(schema)
+            logger.info(f"Sleeping for {SECONDS_BETWEEN_REQUESTS} seconds")
+            time.sleep(SECONDS_BETWEEN_REQUESTS)
 
     except requests.exceptions.RequestException as e:
         logger.fatal('Error on ' + e.request.url +
